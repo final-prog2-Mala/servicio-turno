@@ -1,5 +1,6 @@
 package com.programacion.turnos.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.programacion.turnos.model.Turno;
 import com.programacion.turnos.repository.TurnoRepository;
@@ -10,10 +11,13 @@ import org.springframework.stereotype.Service;
 public class KafkaTurnosListener {
 
     private final TurnoRepository turnoRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public KafkaTurnosListener(TurnoRepository turnoRepository) {
         this.turnoRepository = turnoRepository;
+        this.objectMapper = new ObjectMapper()
+                .findAndRegisterModules()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     @KafkaListener(topics = "${catedra.kafka.topic.appointment-actions}", groupId = "${spring.kafka.consumer.group-id}")
@@ -23,12 +27,11 @@ public class KafkaTurnosListener {
         System.out.println("Payload: " + mensaje);
 
         try {
-            // Si el mensaje viene en formato JSON representativo de un Turno
             Turno turno = objectMapper.readValue(mensaje, Turno.class);
             turnoRepository.save(turno);
             System.out.println("¡Turno guardado/actualizado correctamente en PostgreSQL!");
         } catch (Exception e) {
-            System.out.println("Mensaje recibido en formato texto plano o estructura previa: " + e.getMessage());
+            System.err.println("No se pudo mapear directamente a Turno: " + e.getMessage());
         }
         System.out.println("=========================================");
     }
